@@ -1,11 +1,11 @@
 import argparse
 import json
 from datetime import datetime
-from decimal import Decimal, ROUND_HALF_UP, getcontext
+from decimal import Decimal, ROUND_HALF_UP
 
 import pandas as pd
 
-QUANTIZE_ROUND = Decimal("0.01")
+QUANTIZE_ROUND = Decimal('0.00')
 INTERVAL_TIME_IN_SECONDS = 0
 DEFAULT_ENERGY_FLOW_CSV_PATH = "energy_flow.csv"
 DEFAULT_ENERGY_TARIFF_JSON_PATH = "energy_tariff.json"
@@ -95,14 +95,14 @@ def main(args):
         args, energy_flow_df, energy_tariffs
     )
     print("-" * 100)
-    print("Costs per interval:")
+    print("Costs per interval in AUD:")
     print(cost_by_interval_df)
 
     total_time_window_cost = round_float_to_decimal(
         cost_by_interval_df["total_cost"].sum()
     )
     print("")
-    print(f"Total cost for the whole time window: {total_time_window_cost}")
+    print(f"Total cost for the whole time window: {total_time_window_cost} AUD")
     print("-" * 100)
 
 
@@ -137,8 +137,6 @@ def find_interval_time_from_dataframe(energy_flow_df):
 
 
 if __name__ == "__main__":
-    getcontext().prec = 2  # Sets Decimal precision to 2
-
     parser = argparse.ArgumentParser()
     parser.add_argument(
         "-e",
@@ -162,14 +160,14 @@ if __name__ == "__main__":
     parser.add_argument(
         "-c",
         "--battery_capacity_in_kwh",
-        default=1000,
+        default=400,
         type=float,
         help="Rated capacity of the battery in kWh",
     )
     parser.add_argument(
         "-rc",
         "--battery_rated_cycles",
-        default=1000,
+        default=20,
         type=int,
         help="Number of charge/discharge cycles the battery is rated for.",
     )
