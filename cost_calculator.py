@@ -30,7 +30,10 @@ def create_energy_flow_df():
             "battery_energy_flow_kW": battery_energy_flow_kw,
         }
     )
-    print(df.head())
+    print("-" * 100)
+    print("Energy flow values")
+    print(df)
+    print("-" * 100)
     return df
 
 
@@ -48,29 +51,10 @@ def create_energy_tariffs_dict():
 
 
 def get_day_type(date_time: datetime) -> str:
-    """
-    Determines if the given datetime is a weekday or weekend.
-
-    Parameters:
-    date_time (datetime): A datetime object.
-
-    Returns:
-    str: "Weekday" or "Weekend".
-    """
     return "Weekday" if date_time.weekday() < 5 else "Weekend"
 
 
 def get_current_tariff(date_time: datetime, tariffs: dict) -> Decimal:
-    """
-    Finds the tariff for a specific datetime.
-
-    Parameters:
-    date_time (datetime): The datetime for which to find the tariff.
-    tariffs (dict): The tariffs data structure.
-
-    Returns:
-    float: The tariff for the given datetime.
-    """
     day_type = get_day_type(date_time)
     time_str = date_time.strftime("%H:%M")
     for time_range, tariff in tariffs[day_type].items():
@@ -83,13 +67,15 @@ def get_current_tariff(date_time: datetime, tariffs: dict) -> Decimal:
 
 
 def calculate_battery_cost(
-        battery_replacement_cost: Decimal,
-        battery_capacity_in_kwh: float,
-        battery_rated_cycles: int,
-        energy_flow_kw: float
+    battery_replacement_cost: Decimal,
+    battery_capacity_in_kwh: float,
+    battery_rated_cycles: int,
+    energy_flow_kw: float,
 ) -> Decimal:
     battery_energy_flow_kwh = calculate_energy_flow_in_kwh(energy_flow_kw)
-    degradation = (abs(battery_energy_flow_kwh) / battery_capacity_in_kwh) / (battery_rated_cycles / 2)
+    degradation = (abs(battery_energy_flow_kwh) / battery_capacity_in_kwh) / (
+        battery_rated_cycles / 2
+    )
     battery_cost = Decimal(degradation) * battery_replacement_cost
     return round_decimal(battery_cost)
 
@@ -98,35 +84,59 @@ def calculate_energy_flow_in_kwh(energy_flow: float) -> float:
     return energy_flow * (INTERVAL_TIME_IN_SECONDS / 3600)
 
 
-def calculate_grid_cost(energy_flow_df: pd.DataFrame, energy_tariffs: dict) -> Decimal:
-    grid_energy_flow_kw = energy_flow_df.loc[0, "grid_energy_flow_kW"]
+def calculate_grid_cost(
+    grid_energy_flow_kw: float, date_time: datetime, energy_tariffs: dict
+) -> Decimal:
     grid_energy_flow_kwh = calculate_energy_flow_in_kwh(grid_energy_flow_kw)
     if Decimal(grid_energy_flow_kwh).is_zero():
         return Decimal(0)
 
-    current_datetime = energy_flow_df.loc[0, "datetime"]
-    current_tariff = get_current_tariff(current_datetime, energy_tariffs)
-
+    current_tariff = get_current_tariff(date_time, energy_tariffs)
     grid_cost = current_tariff * Decimal(grid_energy_flow_kwh)
     return round_decimal(grid_cost)
 
 
 def main(args):
-    getcontext().prec = 2
     energy_flow_df = create_energy_flow_df()
     energy_tariffs = create_energy_tariffs_dict()
     find_interval_time_from_dataframe(energy_flow_df)
 
-    grid_cost = calculate_grid_cost(energy_flow_df, energy_tariffs)
-    print(f"grid_cost: {grid_cost}")
-
-    battery_cost = calculate_battery_cost(
-        args.battery_replacement_cost,
-        args.battery_capacity_in_kwh,
-        args.battery_rated_cycles,
-        energy_flow_df.loc[0, "battery_energy_flow_kW"]
+    cost_by_interval_df = calculate_costs_for_each_interval(
+        args, energy_flow_df, energy_tariffs
     )
-    print(f"battery_cost: {battery_cost}")
+    print("-" * 100)
+    print("Costs per interval:")
+    print(cost_by_interval_df)
+
+    total_time_window_cost = round_float_to_decimal(
+        cost_by_interval_df["total_cost"].sum()
+    )
+    print("")
+    print(f"Total cost for the whole time window: {total_time_window_cost}")
+    print("-" * 100)
+
+
+def calculate_costs_for_each_interval(
+    args, energy_flow_df: pd.DataFrame, energy_tariffs: dict
+) -> pd.DataFrame:
+    cost_by_interval_df = pd.DataFrame(
+        index=energy_flow_df.index, columns=["grid_cost", "battery_cost", "total_cost"]
+    )
+    for idx, row in energy_flow_df.iterrows():
+        grid_cost = calculate_grid_cost(
+            grid_energy_flow_kw=row["grid_energy_flow_kW"],
+            date_time=row["datetime"],
+            energy_tariffs=energy_tariffs,
+        )
+        battery_cost = calculate_battery_cost(
+            battery_replacement_cost=args.battery_replacement_cost,
+            battery_capacity_in_kwh=args.battery_capacity_in_kwh,
+            battery_rated_cycles=args.battery_rated_cycles,
+            energy_flow_kw=row["battery_energy_flow_kW"],
+        )
+        total_cost = grid_cost + battery_cost
+        cost_by_interval_df.loc[idx] = [grid_cost, battery_cost, total_cost]
+    return cost_by_interval_df
 
 
 def find_interval_time_from_dataframe(energy_flow_df):
@@ -137,6 +147,8 @@ def find_interval_time_from_dataframe(energy_flow_df):
 
 
 if __name__ == "__main__":
+    getcontext().prec = 2  # Sets Decimal precision to 2
+
     parser = argparse.ArgumentParser()
     parser.add_argument(
         "-e",
