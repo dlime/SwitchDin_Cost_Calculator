@@ -1,4 +1,5 @@
 import argparse
+import json
 from datetime import datetime
 from decimal import Decimal, ROUND_HALF_UP, getcontext
 
@@ -6,6 +7,8 @@ import pandas as pd
 
 QUANTIZE_ROUND = Decimal("0.01")
 INTERVAL_TIME_IN_SECONDS = 0
+DEFAULT_ENERGY_FLOW_CSV_PATH = "energy_flow.csv"
+DEFAULT_ENERGY_TARIFF_JSON_PATH = "energy_tariff.json"
 
 
 def round_decimal(input: Decimal) -> Decimal:
@@ -16,38 +19,25 @@ def round_float_to_decimal(input: float) -> Decimal:
     return round_decimal(Decimal(input))
 
 
-def create_energy_flow_df():
-    # Creates a date range for 10 minutes with 1-minute intervals
-    date_range = pd.date_range(
-        start=datetime.now().replace(second=0, microsecond=0), periods=10, freq="min"
-    )
-    grid_energy_flow_kw = [5, -3, 4, -2, 5, -3, 4, -2, 5, -3]
-    battery_energy_flow_kw = [-100, 2, -1.5, 2.5, -1, 2, -1.5, 2.5, -1, 2]
-    df = pd.DataFrame(
-        {
-            "datetime": date_range,
-            "grid_energy_flow_kW": grid_energy_flow_kw,
-            "battery_energy_flow_kW": battery_energy_flow_kw,
-        }
-    )
+def create_energy_flow_df(path: str) -> pd.DataFrame:
+    energy_flow_df = pd.read_csv(path, parse_dates=['datetime'])
     print("-" * 100)
     print("Energy flow values")
-    print(df)
+    print(energy_flow_df)
     print("-" * 100)
-    return df
+    return energy_flow_df
 
 
-def create_energy_tariffs_dict():
-    return {
-        "Weekday": {
-            "00:00-06:00": round_float_to_decimal(0.10),
-            "06:01-18:00": round_float_to_decimal(0.20),
-            "18:01-23:59": round_float_to_decimal(0.15),
-        },
-        "Weekend": {
-            "00:00-23:59": round_float_to_decimal(0.05),
-        },
-    }
+def create_energy_tariffs_dict(path: str) -> dict:
+    with open(path, 'r') as file:
+        tariffs = json.load(file)
+
+    # Iterate through the dictionary to convert all float values to Decimal
+    for day, times in tariffs.items():
+        for time_range, rate in times.items():
+            tariffs[day][time_range] = round_float_to_decimal(rate)
+
+    return tariffs
 
 
 def get_day_type(date_time: datetime) -> str:
@@ -97,8 +87,8 @@ def calculate_grid_cost(
 
 
 def main(args):
-    energy_flow_df = create_energy_flow_df()
-    energy_tariffs = create_energy_tariffs_dict()
+    energy_flow_df = create_energy_flow_df(path=args.energy_flow_path)
+    energy_tariffs = create_energy_tariffs_dict(path=args.energy_tariff_costs_path)
     find_interval_time_from_dataframe(energy_flow_df)
 
     cost_by_interval_df = calculate_costs_for_each_interval(
@@ -153,14 +143,14 @@ if __name__ == "__main__":
     parser.add_argument(
         "-e",
         "--energy_flow_path",
-        default="",
-        help="Path for energy flow data pickle file",
+        default=DEFAULT_ENERGY_FLOW_CSV_PATH,
+        help="Path for energy flow data CSV file",
     )
     parser.add_argument(
         "-t",
         "--energy_tariff_costs_path",
-        default="",
-        help="Path for energy tariff costs pickle file",
+        default=DEFAULT_ENERGY_TARIFF_JSON_PATH,
+        help="Path for energy tariff costs JSON file",
     )
     parser.add_argument(
         "-b",
