@@ -52,7 +52,7 @@ def get_current_tariff(date_time: datetime, tariffs: dict) -> Decimal:
         if start <= time_str <= end:
             return tariff
 
-    # print error here
+    print(f"ERROR: couldn't find an energy tariff for the interval {datetime}. Defaulting the price to 0")
     return Decimal(0)
 
 
