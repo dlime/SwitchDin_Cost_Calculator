@@ -6,9 +6,9 @@ List of assumptions and implementation details
   - `degradation = (abs(energy_flow_kwh) / capacity_in_kwh ) / (rated_cycles / 2)` 
 - for costs, `Decimal` is used as data type instead of float for better rounding & arithmetics 
 - energy interval is assumed always the same in the `energy flow` table
-- energy tariff are the same when either using or selling the energy from the grid
+- energy tariff are the same when either using or selling grid's energy
 - energy tariff are given as Weekday / Weekend and through time intervals (refer to `energy_tariff.json`)
-- energy tariff are applied taking in account the start of the time interval (example: ....)
+- energy tariff are applied taking using only the start of the time interval
 
 # Setup
 ```shell
